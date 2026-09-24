@@ -67,16 +67,24 @@ XGBClassifier(n_estimators=50, learning_rate=0.2, gamma=5, subsample=0.7, scale_
 - **XGBoost had the best recall of all seven algorithms.** After tuning it caught **94.3%** of churners with **82.9%** precision and **96.0%** accuracy on the test set. The other ensembles were more precise (~0.93) but missed 12–25% of churners.
 - **RandomizedSearchCV over GridSearchCV.** The grid-searched XGBoost gained only 0.8 recall points (~4 more churners) but lost 10.5 precision points (~82 more false alarms), and took far longer to run.
 
-| Model (test set) | Recall | Precision | Accuracy |
-|---|---|---|---|
-| Logistic Regression | 0.426 | 0.725 | 0.882 |
-| Decision Tree (tuned) | 0.752–0.785 | 0.698–0.735 | 0.911–0.917 |
-| Random Forest (tuned) | 0.752 | 0.934 | 0.952 |
-| Bagging (tuned) | 0.844 | 0.932 | 0.965 |
-| Gradient Boosting (tuned) | 0.875 | 0.932 | 0.970 |
-| XGBoost — GridSearchCV | 0.951 | 0.724 | 0.934 |
-| **XGBoost — RandomizedSearchCV (selected)** | **0.943** | **0.829** | **0.960** |
-
+| # | Model | Train Accuracy | Test Accuracy | Train Recall | Test Recall | Train Precision | Test Precision |
+|---|---|:---:|:---:|:---:|:---:|:---:|:---:|
+| 0 | Logistic Regression | 0.88 | 0.88 | 0.42 | 0.43 | 0.70 | 0.72 |
+| 1 | Logistic Regression on Oversampled data | 0.83 | 0.81 | 0.84 | 0.79 | 0.82 | 0.45 |
+| 2 | Logistic Regression-Regularized (Oversampled data) | 0.71 | 0.80 | 0.57 | 0.55 | 0.78 | 0.42 |
+| 3 | Logistic Regression on Undersampled data | 0.82 | 0.82 | 0.82 | 0.80 | 0.82 | 0.46 |
+| 4 | Decision Tree with GridSearchCV | 0.94 | 0.92 | 0.82 | 0.75 | 0.81 | 0.74 |
+| 5 | Decision Tree with RandomizedSearchCV | 0.93 | 0.91 | 0.82 | 0.78 | 0.75 | 0.70 |
+| 6 | Bagging Classifier with GridSearchCV | 1.00 | 0.97 | 0.99 | 0.84 | 1.00 | 0.93 |
+| 7 | Bagging Classifier with RandomizedSearchCV | 1.00 | 0.97 | 0.99 | 0.84 | 1.00 | 0.93 |
+| 8 | Random Forest with GridSearchCV | 1.00 | 0.95 | 0.97 | 0.75 | 1.00 | 0.93 |
+| 9 | Random Forest with RandomizedSearchCV | 1.00 | 0.95 | 0.97 | 0.75 | 1.00 | 0.93 |
+| 10 | AdaBoost with GridSearchCV | 0.97 | 0.96 | 0.89 | 0.83 | 0.95 | 0.94 |
+| 11 | AdaBoost Tree with RandomizedSearchCV | 0.97 | 0.95 | 0.87 | 0.78 | 0.94 | 0.92 |
+| 12 | GradientBoost with GridSearchCV | 0.99 | 0.97 | 0.96 | 0.88 | 0.98 | 0.93 |
+| 13 | GradientBoost Tree with RandomizedSearchCV | 0.99 | 0.97 | 0.96 | 0.88 | 0.98 | 0.93 |
+| 14 | XGBoost with GridSearchCV | 0.96 | 0.93 | 1.00 | 0.95 | 0.78 | 0.72 |
+| 15 | **XGBoost with RandomizedSearchCV (selected)** | **0.98** | **0.96** | **1.00** | **0.94** | **0.90** | **0.83** |
 ---
 
 ## 3. Baseline for Comparison
