@@ -140,8 +140,7 @@ Mean over 25 paired folds.
 - **Guardrail:** **passed.** The recall difference is not significant (−0.45 pts, p = 0.74), and the lower 95% CI bound (−1.89 pts) stays inside the −2 pt margin.
 - **Other metrics:** precision, PR-AUC, ROC-AUC and accuracy are also significantly higher (all p < 0.001, better in 25/25 folds).
 
-![A/B test results](images/ab_results.png)
-*Left: mean difference per metric with 95% CI (dotted line = −2 pt recall margin). Middle/right: F1 and precision per fold; each grey line joins the same fold.*
+
 
 ## 6. Analysis and Explanation
 
