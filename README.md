@@ -90,37 +90,96 @@ GBM was chosen as the best balance: validation recall ~97%, accuracy ~94%, preci
 
 ---
 
-### 4. A/B Testing Setup
-1. **Hypothesis:**
-   * **Null Hypothesis ($H_0$):** There is no significant difference in performance between the proposed solution and the baseline model ($\mu_{\text{proposed}} = \mu_{\text{baseline}}$).[cite: 3]
-   * **Alternative Hypothesis ($H_1$):** The proposed solution significantly outperforms the baseline model on the primary evaluation metric ($\mu_{\text{proposed}} > \mu_{\text{baseline}}$).[cite: 3]
-2. **Evaluation Metrics:**
-   * **Primary Metric:** `[e.g., ROC-AUC / RMSE / F1 Score]`[cite: 3]
-   * **Secondary Metrics:** `[e.g., Accuracy, Precision, Recall / MAE]`[cite: 3]
-3. **Data Splitting & Validation:**
-   * Used Stratified 5-Fold Cross-Validation with fixed `random_state` across both models to ensure a fair comparison.[cite: 3]
+## 4. A/B Testing
 
----
+### Hypothesis
+- **Null Hypothesis ($H_0$):** There is no significant difference in F1 score between the proposed solution (XGBoost) and the baseline (Kaggle Gradient Boosting): $\mu_{proposed} = \mu_{baseline}$.
+- **Alternative Hypothesis ($H_1$):** The proposed solution achieves a significantly higher F1 score than the baseline: $\mu_{proposed} > \mu_{baseline}$.
+- **Guardrail:** the proposed solution's recall must not be more than **2 percentage points** below the baseline's. The bank cannot accept missing more churners in exchange for fewer false alarms.
 
-### 5. Comparison and Quantitative Results
-1. **Performance Comparison Table:**[cite: 3]
+### Evaluation Metrics
+- **Primary Metric:** `F1 Score` (churn class, threshold 0.5).
+  - Both solutions were tuned for recall and already catch ~95% of churners, so recall alone cannot separate them.
+  - F1 balances **recall** (a missed churner is a lost customer) and **precision** (a false alarm is a wasted retention offer).
+- **Secondary Metrics:** `Recall` (guardrail), `Precision`, `PR-AUC` (threshold-free and suited to imbalanced data), `ROC-AUC`, `Accuracy`.
+  - Accuracy is reported but not relied on: with 16% churn, predicting "no churn" for everyone already scores 84%.
+    
+|model|F1|Recall|Precision|PR\_AUC|ROC\_AUC|Accuracy|
+|---|---|---|---|---|---|---|
+|Kaggle|0\.8477|0\.9572|0\.7609|0\.9431|0\.9888|0\.9447|
+|Mine|0\.8862|0\.9527|0\.8286|0\.9654|0\.9926|0\.9606|
 
-   | Metric | Baseline Solution | Proposed Solution | Delta ($\Delta$) | % Improvement |
-   | :--- | :--- | :--- | :--- | :--- |
-   | **Primary Metric** | `0.00` | `0.00` | `+0.00` | **+0.0%** |
-   | **Metric 2** | `0.00` | `0.00` | `+0.00` | **+0.0%** |
-   | **Metric 3** | `0.00` | `0.00` | `+0.00` | **+0.0%** |
+### Data Splitting & Validation
+- **Stratified 5-fold cross-validation, repeated 5 times** with a fixed `random_state=1`: `RepeatedStratifiedKFold(n_splits=5, n_repeats=5, random_state=1)` on all 10,127 customers, giving **25 paired folds**.
+- **Identical splits:** in every fold both models get exactly the same rows, about 8,101 for training and 2,026 for testing (~325 churners).
+- **Each model runs its full pipeline inside every training fold**, so there is no leakage:
+  - **Proposed:** KNN imputation → one-hot encoding → StandardScaler → XGBoost, trained on all ~8,101 rows with `scale_pos_weight=10`.
+  - **Baseline:** drop 5 columns → one-hot encoding → RobustScaler → random under-sampling (~2,600 balanced rows) → Gradient Boosting.
+- **Why not compare the published scores:** the two notebooks used different splits (70/30 vs 60/20/20), so their reported test scores are not directly comparable.
 
-2. **Statistical Significance Test:**[cite: 3]
-   * **Test Type:** Paired Student's t-test / Bootstrap resampling[cite: 3]
-   * **p-value:** `0.00` ($\alpha = 0.05$)[cite: 3]
-   * **Result:** [Statistically Significant / Not Significant][cite: 3]
+## 5. Comparison and Quantitative Results
 
----
+### Performance Comparison Table
+Mean over 25 paired folds.
 
-### 6. Analysis and Explanation
-1. **Insights on Differences:** [Explain why your model performed differently than the baseline][cite: 3]
-2. **Strengths vs. Weaknesses:**
-   * **Strengths:** [List main advantages of your solution][cite: 3]
-   * **Weaknesses:** [List trade-offs like higher compute cost or inference latency][cite: 3]
-3. **Gaps & Future Improvements:** [Discuss potential reasons for performance gaps and next steps][cite: 3]
+| Metric | Baseline Solution (Kaggle GBM) | Proposed Solution (Mine-XGBoost) | Delta ($\Delta$) | % Improvement | 95% CI of $\Delta$ | Proposed better in |
+|---|---|---|---|---|---|---|
+| **F1 (primary)** | 0.848 | **0.886** | **+0.0385** | **+4.5%** | [+0.0243, +0.0526] | 25/25 folds |
+| Recall (guardrail) | 0.957 | 0.953 | −0.0045 | −0.5% | [−0.0189, +0.0098] | 6/25 folds |
+| Precision | 0.761 | **0.829** | +0.0677 | +8.9% | [+0.0458, +0.0896] | 25/25 folds |
+| PR-AUC | 0.943 | **0.965** | +0.0223 | +2.4% | [+0.0102, +0.0345] | 25/25 folds |
+| ROC-AUC | 0.989 | **0.993** | +0.0038 | +0.4% | [+0.0018, +0.0057] | 25/25 folds |
+| Accuracy | 0.945 | **0.961** | +0.0159 | +1.7% | [+0.0104, +0.0214] | 25/25 folds |
+
+**In customer terms (per fold of 2,026 customers, ~325 churners):** both models catch about 310 churners, but the proposed solution raises **~64 false alarms against ~98 for the baseline, about 35% fewer**.
+
+### Statistical Significance Test
+- **Test Type:** one-sided **paired t-test** on the 25 per-fold differences, with the **Nadeau–Bengio correction** for overlapping CV training sets. A plain t-test would overstate significance.
+- **p-value:** **4.5 × 10⁻⁶** for F1 ($\alpha = 0.05$).
+- **Result:** **Statistically significant.** $H_0$ is rejected: the proposed solution has a higher F1 score.
+- **Guardrail:** **passed.** The recall difference is not significant (−0.45 pts, p = 0.74), and the lower 95% CI bound (−1.89 pts) stays inside the −2 pt margin.
+- **Other metrics:** precision, PR-AUC, ROC-AUC and accuracy are also significantly higher (all p < 0.001, better in 25/25 folds).
+
+![A/B test results](images/ab_results.png)
+*Left: mean difference per metric with 95% CI (dotted line = −2 pt recall margin). Middle/right: F1 and precision per fold; each grey line joins the same fold.*
+
+## 6. Analysis and Explanation
+
+<img width="1589" height="393" alt="image" src="https://github.com/user-attachments/assets/9da9b4fb-4067-48dc-b5d8-499674ac6b61" />
+
+
+### Insights on Differences
+The proposed solution catches **the same churners** as the baseline but with **far fewer false alarms**. Its precision–recall curve is higher (PR-AUC 0.965 vs 0.943), so this is better ranking of customers, not just a different threshold. The main reasons:
+
+1. **Keeping all the data vs under-sampling.**
+   - The baseline discards ~70% of the non-churners in each training fold (8,101 → ~2,600 rows) to balance the classes. That pushes its recall up, but the model sees far fewer examples of loyal customers, so it over-flags them.
+   - The proposed solution handles the imbalance with **class weighting** (`scale_pos_weight=10`) and learns from every row.
+2. **Keeping all features.**
+   - The baseline dropped `Customer_Age`, `Dependent_count`, `Months_on_book`, `Credit_Limit` and `Avg_Open_To_Buy` because their *linear* correlation with churn was near zero.
+   - Tree models use non-linear effects and interactions, so weak linear correlation is not a good reason to drop a feature.
+   - The customers that only the baseline wrongly flags tend to be younger and newer to the bank, which is exactly the information it removed.
+3. **Model capacity and regularisation.**
+   - The baseline uses 700 trees of depth 25 fitted to ~2,600 rows, which tends to memorise the training data.
+   - The proposed XGBoost (50 trees, `gamma=5`, `subsample=0.7`) is smaller and regularised, and generalises more steadily: its precision varies less from fold to fold.
+
+### Strengths vs. Weaknesses
+**Strengths**
+- ~35% fewer wasted retention offers at the same recall, with significantly higher F1, precision, PR-AUC and accuracy in **all 25 folds**.
+- Uses all customers and all features; no training data is discarded.
+- Smaller and faster model: 50 trees vs 700 deep trees, so training and scoring are cheaper.
+- More stable across folds.
+
+**Weaknesses**
+- **Recall is not better.** It is slightly lower on average (−0.45 pts, not significant), and the CI lower bound (−1.89 pts) is close to the 2-pt margin, so a small recall loss cannot be fully ruled out.
+- **KNN imputation adds a step at scoring time** (it needs the training data to find neighbours) and treats category codes as numbers, which is a heuristic for nominal variables.
+- **Mild over-fitting:** train recall is 1.00 against ~0.95 on unseen data.
+- **Tuned on recall only, with the default 0.5 threshold** rather than a threshold chosen from business costs.
+
+### Gaps & Future Improvements
+1. **Choose the threshold from business costs.** Pick the decision threshold (inside CV) that minimises *(cost of a lost customer × missed churners) + (cost of an offer × false alarms)*, or that hits a target recall such as ≥ 0.96. Because the proposed model ranks customers better, it can match the baseline's recall while keeping higher precision.
+2. **Tune on PR-AUC or F2 instead of raw recall**, so the search sees the cost of false alarms.
+3. **Simplify the categorical handling:** keep "Unknown" as its own category, or use native categorical support (LightGBM/CatBoost), instead of KNN-imputing label codes.
+4. **Feature engineering:** e.g. average transaction value (`Total_Trans_Amt / Total_Trans_Ct`), recent-activity drop (Q4/Q1 change × months inactive).
+5. **Use nested cross-validation for tuning**, so the reported score is not measured on the same data used to choose the model.
+6. **Explainability:** SHAP values per customer, so the retention team sees *why* someone is flagged.
+7. **Run an online A/B test:** randomise flagged customers into offer / no-offer groups and measure **customers actually retained**. Offline metrics are only a proxy for business impact.
