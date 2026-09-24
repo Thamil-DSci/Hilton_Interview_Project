@@ -117,7 +117,7 @@ XGBClassifier(n_estimators=50, learning_rate=0.2, gamma=5, subsample=0.7, scale_
 
 ---
 
-## 4. A/B Testing Setup
+## 4. A/B Testing 
 
 ### Hypothesis
 - **Null hypothesis ($H_0$):** there is no significant difference in F1 score between my solution and the baseline: $\mu_{proposed} = \mu_{baseline}$.
