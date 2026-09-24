@@ -1,3 +1,4 @@
+# Hilton Take-Home Project 
 # Task 1: Model Benchmarking & A/B Testing — Credit Card Churn
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Thamil-DSci/int1_Thamil/blob/main/Hilton_ML_Project.ipynb)
@@ -14,7 +15,7 @@
 1. [Problem Selection](#1-problem-selection)
 2. [Solution Implementation](#2-solution-implementation)
 3. [Baseline for Comparison](#3-baseline-for-comparison)
-4. [A/B Testing Setup](#4-ab-testing-setup)
+4. [A/B Testing](#4-ab-testing-setup)
 5. [Comparison and Quantitative Results](#5-comparison-and-quantitative-results)
 6. [Analysis and Explanation](#6-analysis-and-explanation)
 
@@ -197,3 +198,146 @@ My solution catches **the same churners** as the baseline with **far fewer false
 5. **Nested cross-validation for tuning**, so the reported score is not measured on the data used to choose the model.
 6. **Explainability** — SHAP values per customer, so the retention team sees *why* someone is flagged.
 7. **Online A/B test** — randomise flagged customers into offer / no-offer groups and measure **customers actually retained**. Offline metrics are only a proxy for business impact.
+
+
+
+
+
+# Task 2: Flight Data Simulation & Analysis
+
+
+
+In this task I built a small Python program in two parts. First it **creates** fake flight data (about 5,000 JSON files). Then it **reads all of that data back, cleans it, and answers a few questions** about it: which cities get the most passengers, how long those flights take, and which cities gain or lose the most people overall.
+
+Everything is in one notebook: [`Hilton_TakeHome_Project_Task2.ipynb`](Hilton_TakeHome_Project_Task2.ipynb). It runs from top to bottom with no extra files needed.
+
+---
+
+## Results at a glance
+
+| What | Result |
+|---|---|
+| Files created | **5,000** JSON files |
+| Total flight records processed | **375,234** |
+| Bad ("dirty") records found and removed | **3,618** (0.96%) |
+| Clean records used for analysis | **371,616** |
+| Total runtime of the analysis phase | **~1,900 ms** (about 2 seconds) |
+| Destination with the most passengers arriving | **Nice** (459,520 passengers) |
+| City with the **most** passengers remaining | **Abuja** (+68,552) |
+| City with the **fewest** passengers remaining | **Bucharest** (−55,946) |
+| Self-checks passed | **8 / 8** ✅ |
+
+---
+
+## Phase 1 — Creating the flight data
+
+The goal here was to make realistic-looking test data that the second phase can work on.
+
+**What I did, step by step:**
+
+1. **Picked a list of cities.** I started with 200 city names and randomly chose between 100 and 200 of them for this run (it picked 181).
+2. **Gave each city a spot on a map.** Each city gets random coordinates, so a flight's duration depends on how far apart the two cities are, plus a bit of random variation. Without this, every flight would be a random length and the averages would mean nothing.
+3. **Made the flight records.** Each record has five fields:
+
+   | Field | Example |
+   |---|---|
+   | `date` | `2026-09-17` |
+   | `origin_city` | `Abu Dhabi` |
+   | `destination_city` | `San Diego` |
+   | `flight_duration_secs` | `20738` |
+   | `#_of_passengers_on_board` | `156` |
+
+4. **Added some "dirty" records on purpose.** About 0.5–1% of records (0.96% in this run) have one to three fields left empty (`null`), to test the cleaning step.
+5. **Saved the files.** Each file holds 50–100 flights leaving one city.
+
+**One problem I had to solve with the file names.** The task asks for names like `09-26-London-flights.json` (month-year, then city). But there are only up to 200 cities and one month, so at most 200 files can have different names. If I saved 5,000 files in one folder, most would overwrite each other. To fix this, I put the files into numbered folders (`batch_0001`, `batch_0002`, …). Each folder has one file per city, with the exact name the task asks for:
+
+```
+/tmp/flights/
+├── batch_0001/
+│   ├── 09-26-London-flights.json
+│   ├── 09-26-Paris-flights.json
+│   └── ...
+├── batch_0002/
+│   └── ...
+```
+
+While generating, the program also keeps a count of exactly how many records and dirty records it wrote. I use these numbers at the end to check that Phase 2 got everything right.
+
+---
+
+## Phase 2 — Cleaning and analyzing the data
+
+A timer starts at the beginning of this phase and stops at the end, so the runtime covers loading, cleaning and all the calculations.
+
+### Step 1: Load all the files
+I read every JSON file and put all the flight records into **one pandas table** (`df_raw`). I collect the records in a list first and build the table once at the end, which is much faster than building 5,000 small tables and joining them. I also keep the file name next to each record, so any bad record can be traced back to where it came from.
+
+### Step 2: Find and remove the bad records
+A record is "dirty" if **any** of its five fields is empty. I counted them, then removed them.
+
+**Why remove instead of fix?** You can't reliably guess a missing destination, flight time or passenger count. Making up values would quietly skew the averages and the passenger totals, so it's safer to leave those records out.
+
+The clean table is called **`df`**, and everything after this step uses it. I also set proper data types (whole numbers, dates, and a memory-saving type for city names).
+
+### Step 3: Report the counts
+- Total records processed: **375,234**
+- Dirty records: **3,618** (0.96%)
+- Runtime: shown at the end, once all the steps are finished
+
+### Step 4: Top 25 destinations — average and P95 flight time
+1. I added up the passengers arriving at each city and kept the **top 25**.
+2. For each of those 25 cities I calculated:
+   - **AVG**: the average flight duration into that city.
+   - **P95**: the 95th percentile, meaning 95% of flights into that city are shorter than this. It shows how long the *longer* flights take, not just the typical one.
+
+The notebook shows these as a table (in seconds, and in hours:minutes) and as a chart.
+
+### Step 5: Passenger balance for each city
+Every city starts at **0**. For every flight:
+- the **destination gains** the passengers on board;
+- the **origin loses** the same number.
+
+So each city's result is simply **passengers arrived − passengers departed**.
+
+- **Most passengers remaining:** Abuja, **+68,552** (more people flew in than out)
+- **Fewest passengers remaining:** Bucharest, **−55,946** (more people flew out than in)
+
+**Why can the number be negative?** Because every city starts at 0, the balance is really the *net flow* of people, not a head-count. A negative number just means more people left that city than arrived.
+
+**A built-in sanity check:** every passenger leaves one city and arrives in another, so all the balances together must add up to exactly **0**. They do.
+
+---
+
+## Checking my own work
+
+At the end, the notebook compares Phase 2's results with what Phase 1 actually wrote:
+
+| Check | Result |
+|---|---|
+| Records processed = records generated (375,234) | ✅ PASS |
+| Dirty records found = dirty records generated (3,618) | ✅ PASS |
+| 5,000 files were created | ✅ PASS |
+| Every file has 50–100 records | ✅ PASS |
+| City pool size is between 100 and 200 (181) | ✅ PASS |
+| No flight goes from a city to itself | ✅ PASS |
+| No empty values are left in the clean data | ✅ PASS |
+| All passenger balances add up to 0 | ✅ PASS |
+
+---
+
+## Design choices in short
+
+| Decision | Why |
+|---|---|
+| Numbered batch folders | Keeps the exact file names from the task without files overwriting each other |
+| Distance-based flight times | Makes the AVG and P95 results meaningful instead of random |
+| Remove dirty records rather than fill them in | Guessing missing values would distort the results |
+| Build one pandas table, then use `groupby` | Fast and simple; no slow row-by-row loops |
+| Count everything during generation | Lets the notebook prove its own results are correct |
+| Fixed random seed (`SEED = 42`) | Re-running gives the same data (the month in the file names still changes each month) |
+
+**If the data were much bigger**, the same logic would move to tools built for large data, such as reading files in parallel, DuckDB or Spark. The calculations themselves wouldn't change.
+
+---
+
